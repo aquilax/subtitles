@@ -1,6 +1,7 @@
 package subtitles
 
 import (
+	"bytes"
 	"io"
 	"reflect"
 	"strings"
@@ -9,15 +10,15 @@ import (
 )
 
 type collector struct {
-	collection []Subtitle
+	collection []SubRipSubtitle
 }
 
 func newCollector() *collector {
-	return &collector{make([]Subtitle, 0)}
+	return &collector{make([]SubRipSubtitle, 0)}
 }
 
 func (c *collector) cb() SubtitleCallback {
-	return func(s Subtitle) (bool, error) {
+	return func(s SubRipSubtitle) (bool, error) {
 		c.collection = append(c.collection, s)
 		return false, nil
 	}
@@ -36,13 +37,13 @@ func TestParseSubRip(t *testing.T) {
 	tests := []struct {
 		name    string
 		r       io.Reader
-		want    []Subtitle
+		want    []SubRipSubtitle
 		wantErr bool
 	}{
 		{
 			"works with empty stream",
 			strings.NewReader(""),
-			[]Subtitle{},
+			[]SubRipSubtitle{},
 			false,
 		},
 		{
@@ -51,7 +52,7 @@ func TestParseSubRip(t *testing.T) {
 00:00:35,684 --> 00:00:37,054
 Lorem ipsum dolor sit amet,
 consectetur adipiscing elit.`),
-			[]Subtitle{
+			[]SubRipSubtitle{
 				{
 					id:    1,
 					start: mustParseTime("00:00:35,684"),
@@ -74,7 +75,7 @@ consectetur adipiscing elit.
 Donec aliquet arcu enim, quis bibendum felis cursus a.
 
 `),
-			[]Subtitle{
+			[]SubRipSubtitle{
 				{
 					id:    1,
 					start: mustParseTime("00:00:35,684"),
@@ -126,6 +127,65 @@ func Test_parseSubRipTime(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseSubRipTime() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_formatSubRipTime(t *testing.T) {
+	type args struct {
+		t time.Time
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatSubRipTime(tt.args.t); got != tt.want {
+				t.Errorf("formatSubRipTime() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEncode(t *testing.T) {
+	tests := []struct {
+		name    string
+		s       SubRipSubtitle
+		wantW   string
+		wantErr bool
+	}{
+		{
+			"happy path",
+			SubRipSubtitle{
+				id:    1,
+				start: mustParseTime("00:00:35,684"),
+				end:   mustParseTime("00:00:37,054"),
+				text: `Lorem ipsum dolor sit amet,
+consectetur adipiscing elit.`,
+			},
+			`1
+00:00:35,684 --> 00:00:37,054
+Lorem ipsum dolor sit amet,
+consectetur adipiscing elit.
+
+`,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &bytes.Buffer{}
+			if err := Encode(w, tt.s); (err != nil) != tt.wantErr {
+				t.Errorf("Encode() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotW := w.String(); gotW != tt.wantW {
+				t.Errorf("Encode() = %v, want %v", gotW, tt.wantW)
 			}
 		})
 	}

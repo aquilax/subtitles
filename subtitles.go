@@ -7,16 +7,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aquilax/with"
 )
 
-type Subtitle struct {
+type SubRipSubtitle struct {
 	id    int
 	start time.Time
 	end   time.Time
 	text  string
 }
 
-type SubtitleCallback func(s Subtitle) (bool, error)
+type SubtitleCallback func(s SubRipSubtitle) (bool, error)
 
 func ParseSubRip(r io.Reader, cb SubtitleCallback) error {
 	scanner := bufio.NewScanner(r)
@@ -36,7 +38,7 @@ func ParseSubRip(r io.Reader, cb SubtitleCallback) error {
 			if endTime, err = parseSubRipTime(end); err != nil {
 				return fmt.Errorf("failed to parse end time: %v", err)
 			}
-			if stop, err := cb(Subtitle{
+			if stop, err := cb(SubRipSubtitle{
 				id:    id,
 				start: startTime,
 				end:   endTime,
@@ -82,7 +84,7 @@ func ParseSubRip(r io.Reader, cb SubtitleCallback) error {
 		if endTime, err = parseSubRipTime(end); err != nil {
 			return fmt.Errorf("failed to parse end time: %v", err)
 		}
-		if stop, err := cb(Subtitle{
+		if stop, err := cb(SubRipSubtitle{
 			id:    id,
 			start: startTime,
 			end:   endTime,
@@ -106,4 +108,19 @@ func parseSubRipTime(t string) (time.Time, error) {
 	}
 
 	return time.Date(0, 0, 0, hour, minute, second, millisecond*int(time.Millisecond), time.UTC), nil
+}
+
+func formatSubRipTime(t time.Time) string {
+	return t.Format("15:04:05,000")
+}
+
+func Encode(w io.Writer, s SubRipSubtitle) error {
+	return with.Errors(
+		with.GetSecond(func() (any, error) { return fmt.Fprintln(w, s.id) }),
+		with.GetSecond(func() (any, error) {
+			return fmt.Fprintf(w, "%s --> %s\n", formatSubRipTime(s.start), formatSubRipTime(s.end))
+		}),
+		with.GetSecond(func() (any, error) { return fmt.Fprintln(w, s.text) }),
+		with.GetSecond(func() (any, error) { return fmt.Fprintln(w, "") }),
+	)
 }
